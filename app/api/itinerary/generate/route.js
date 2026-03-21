@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 
-const FREE_MODELS = [
-  'openrouter/free',
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'deepseek/deepseek-chat-v3-0324:free',
-  'google/gemini-2.0-flash-exp:free',
-  'qwen/qwen3-8b:free',
+const GROQ_MODELS = [
+  'llama-3.3-70b-versatile',
+  'llama-3.1-8b-instant',
+  'mixtral-8x7b-32768',
+  'gemma2-9b-it',
 ];
 
 export async function POST(req) {
@@ -67,8 +66,11 @@ Create a detailed, realistic and exciting travel itinerary based on these detail
 - Travel style: ${style}
 - Special preferences: ${preferences || 'None'}
 
-Respond ONLY with a valid JSON object. No markdown, no extra text, no code fences.
-Use exactly this structure:
+IMPORTANT: Respond ONLY with a valid JSON object. 
+No markdown, no extra text, no code fences, no explanation.
+Start your response with { and end with }
+
+Use exactly this JSON structure:
 
 {
   "destination": "City, Country",
@@ -144,43 +146,42 @@ Use exactly this structure:
 
 Generate all ${days} days. Make it detailed, realistic and genuinely helpful.`;
 
-    // ── Try each free model until one works ────────────
-    let openRouterData = null;
-    let lastError      = null;
+    // ── Try each Groq model until one works ────────────
+    let groqData  = null;
+    let lastError = null;
 
-    for (const model of FREE_MODELS) {
+    for (const model of GROQ_MODELS) {
       try {
-        console.log(`Trying model: ${model}`);
+        console.log(`Trying Groq model: ${model}`);
 
-        const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type':  'application/json',
-            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            'HTTP-Referer':  'http://localhost:3000',
-            'X-Title':       'Voyara Travel Planner',
+            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
           },
           body: JSON.stringify({
             model,
             messages: [
               {
+                role:    'system',
+                content: 'You are an expert travel planner. Always respond with valid JSON only. Never include markdown, code fences, or any text outside the JSON object.',
+              },
+              {
                 role:    'user',
                 content: prompt,
               },
             ],
-            temperature: 0.7,
-            max_tokens:  8000,
+            temperature:       0.7,
+            max_tokens:        8000,
+            response_format:   { type: 'json_object' },
           }),
         });
 
-        const data = await openRouterRes.json();
+        const data = await groqRes.json();
 
-        // Skip if rate limited or any error
-        if (
-          !openRouterRes.ok     ||
-          data?.error           ||
-          data?.error?.code === 429
-        ) {
+        // Skip if error or rate limited
+        if (!groqRes.ok || data?.error) {
           console.log(`Model ${model} failed:`, data?.error?.message);
           lastError = data?.error?.message;
           continue;
@@ -193,8 +194,8 @@ Generate all ${days} days. Make it detailed, realistic and genuinely helpful.`;
           continue;
         }
 
-        openRouterData = data;
-        console.log(`✓ Success with model: ${model}`);
+        groqData = data;
+        console.log(`✓ Success with Groq model: ${model}`);
         break;
 
       } catch (err) {
@@ -205,16 +206,16 @@ Generate all ${days} days. Make it detailed, realistic and genuinely helpful.`;
     }
 
     // ── All models failed ──────────────────────────────
-    if (!openRouterData) {
-      console.error('All models failed. Last error:', lastError);
+    if (!groqData) {
+      console.error('All Groq models failed. Last error:', lastError);
       return NextResponse.json(
-        { error: 'All AI models are currently busy. Please try again in a minute.' },
+        { error: 'AI service unavailable. Please try again in a moment.' },
         { status: 502 }
       );
     }
 
-    // ── Extract text from response ─────────────────────
-    const rawText = openRouterData?.choices?.[0]?.message?.content?.trim();
+    // ── Extract text from Groq response ───────────────
+    const rawText = groqData?.choices?.[0]?.message?.content?.trim();
 
     if (!rawText) {
       return NextResponse.json(
@@ -223,7 +224,7 @@ Generate all ${days} days. Make it detailed, realistic and genuinely helpful.`;
       );
     }
 
-    // ── Strip markdown fences if any ───────────────────
+    // ── Strip markdown fences just in case ─────────────
     const cleaned = rawText
       .replace(/^```json\s*/i, '')
       .replace(/^```\s*/i,     '')
