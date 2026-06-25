@@ -674,19 +674,8 @@ export default function TravelPlanner() {
             </div>
           </div>
 
-          {/* Not logged in notice */}
-          {!currentUser && (
-            <div style={{
-              marginTop: 16, padding: '10px 16px',
-              background: 'rgba(196,154,80,0.08)',
-              border: '1px solid rgba(196,154,80,0.2)',
-              borderRadius: 12, fontSize: '0.82rem',
-              color: 'rgba(196,154,80,0.8)',
-              display: 'flex', alignItems: 'center', gap: 8,
-            }}>
-              💡 Sign in to save your generated itineraries to your account.
-            </div>
-          )}
+         /* {/* Not logged in notice */}
+          
 
           {/* Error */}
           {error && (
