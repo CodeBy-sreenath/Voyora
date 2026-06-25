@@ -674,7 +674,7 @@ export default function TravelPlanner() {
             </div>
           </div>
 
-         /* {/* Not logged in notice */}
+          {/* Not logged in notice */}
           
 
           {/* Error */}
